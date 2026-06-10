@@ -11,7 +11,7 @@ Portable YouTube Ripper runs a wide range on Mac OS and Linux versions, with por
 * [Downloads](#downloads)
 * [Usage](#usage)
 * [Formats](#formats)
-* [Resolutions](#resolution)
+* [Resolutions](#resolutions)
 * [Bundled Software](#bundled-software)
 * [License](license.md)
 * [Building](build.md)
@@ -66,14 +66,11 @@ The Mac mini Late 2012 fits the minimum 2160p (4k) requirements for VP9, and if 
 
 YouTube hosts videos in multiple resolutions. You can choose the highest allowed resolution with `pytr -cres`. By default the resolution is set to the maximum available. I say 'highest allowed' because not all resolutions are available for every video, and not every resolution is available in every format. Some YouTube videos were only uploaded in 360p, 720p, etc. so they will never have a higher resolution available for download. And AVC1 does not offer 1440p or 2160p at all, you need to use VP9 or AV01 for those resolutions if they are offered for your video.
 
-If you specify the AVC1 format, you will be able to download
-
-
 ## Bundled Software
 
 The portable Linux release uses FFmpeg v8.1.1 from Fedora  (LGPLv3 license), made portable with my [PLED](https://github.com/alex-free/pled) tool (3-BSD license).
 
 The portable Mac release uses my [yt-dlp-macos-legacy](https://github.com/alex-free/yt-dlp-macos-legacy) standalone binary, which includes a static FFmpeg build from [https://evermeet.cx/ffmpeg/](https://evermeet.cx/ffmpeg/).
 
-* [YouTube-DLP](https://github.com/yt-dlp/yt-dlp) is released under the unlicense. If you are using the portable Linux build, you may update yt-dlp by running `pytr -u`. If you are using the portable Mac build, this is not available, to update yt-dlp you must download a newer release of Portable YouTube Ripper. The Linux `.deb` and `.rpm` packages use your system's FFmpeg and YouTube-DLP from the package manager repos.
+[YouTube-DLP](https://github.com/yt-dlp/yt-dlp) is released under the unlicense. If you are using the portable Linux build, you may update yt-dlp by running `pytr -u`. If you are using the portable Mac build, this is not available, to update yt-dlp you must download a newer release of Portable YouTube Ripper. The Linux `.deb` and `.rpm` packages use your system's FFmpeg and YouTube-DLP from the package manager repos.
 
