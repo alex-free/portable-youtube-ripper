@@ -1,0 +1,149 @@
+#!/bin/bash
+
+# EzRe build script for Portable YouTube Ripper.
+version="1.0"
+program="pytr"
+release_name="$program-v$version"
+release_files="$program *.md"
+set -e
+mac=false
+# YT-DLP for Mac OS X 10.12+.
+yt_dlp_mac_dl=https://github.com/alex-free/yt-dlp-macos-legacy/releases/download/v1.0/yt-dlp-macos-legacy-v1.0-2026.03.17.zip
+yt_dlp_linux_dl=https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+
+cd "$(dirname "$0")"
+
+# When this script exits, automatically delete the temp directory.
+cleanup()
+{
+    if [[ -e "$tmp" ]]; then
+        rm -r "$tmp"
+    fi
+}
+trap cleanup EXIT
+
+# Put temp directory in /var/tmp to guarantee enough space.
+if [[ "$(uname)" == "Darwin" ]]; then
+    # BSD mktemp syntax.
+    tmp=$(mktemp -d /var/tmp/pytr.XXXXXX)
+else
+    # GNU mktemp syntax.
+    tmp=$(mktemp -d --tmpdir=/var/tmp pytr.XXXXXX)
+fi
+
+version=$version
+rm -rf "$release_name"-mac-os-x86_64-portable "$release_name"-mac-os-x86_64-portable.zip rm -rf "$release_name"-linux-x86_64-portable.zip rm -rf "$release_name"-linux-x86_64-portable "$release_name".deb *.rpm
+
+if [ "$1" == "clean" ]; then
+    exit 0
+fi
+
+if ! command -v dpkg > /dev/null || ! command -v rpm > /dev/null || ! command -v zip > /dev/null || ! command -v curl > /dev/null; then
+    echo "Info: root privileges are required to install build dependencies."
+
+	if [ "$(uname)" = "Darwin" ]; then
+		echo "Mac OS detected."
+        mac=true
+
+		if command -v port > /dev/null; then
+			echo "Using MacPorts"
+			sudo port -N install rpm dpkg curl zip
+		else
+			echo "MacPorts is not installed"
+		fi
+
+    elif [ "$(uname)" = "Linux" ]; then
+		echo "Linux detected."
+
+    	if command -v dnf > /dev/null; then
+			echo "Using dnf"
+            sudo dnf -y install dpkg-dev rpmdevtools curl zip
+		elif command -v apt > /dev/null; then
+			echo "Using apt"
+			sudo apt install --yes dpkg-dev rpm curl zip
+		else
+			echo "MacPorts, DNF, and APT package managers were not found. The make deps rule requires one of these package managers to automatically install all required build dependencies."
+		fi
+    fi
+fi
+
+if sed --version >/dev/null 2>&1; then
+    echo "Info: using GNU sed"
+    bsd_sed=false
+else
+    echo "Info: using BSD sed"
+    bsd_sed=true
+fi
+
+if [ "$bsd_sed" == "true" ]; then
+    sed -i '' -E "s|^version=.*|version=$version|" $program
+    sed -i '' -E "s|^Version:.*|Version: $version|" control
+    sed -i '' -E "s|^Version:.*|Version: v$version|" ezre.spec
+else
+    sed -i'' -E "s|^version=.*|version=$version|" $program  
+    sed -i'' -E "s|^Version:.*|Version: $version|" control
+    sed -i'' -E "s|^Version:.*|Version: v$version|" ezre.spec
+fi
+
+# Mac OS Portable release.
+mkdir -p "$release_name"-mac-os-x86_64-portable/bin
+cp -r ${release_files} "$release_name"-mac-os-x86_64-portable
+
+if [ "$bsd_sed" == "true" ]; then
+    sed -i '' -E "s|^portable_release=.*|portable_release=true|" "$release_name"-mac-os-x86_64-portable/$program
+else
+    sed -i'' -E "s|^portable_release=.*|portable_release=true|" "$release_name"-mac-os-x86_64-portable/$program
+fi
+
+echo "Downloading the latest yt-dlp for Mac OS X 10.12+..."
+curl -L "$yt_dlp_mac_dl" -o $tmp/yt-dlp.zip
+ls $tmp
+unzip $tmp/yt-dlp.zip -d $tmp
+cp $tmp/*/yt-dlp "$release_name"-mac-os-x86_64-portable/bin/
+rm -r $tmp/*
+
+chmod -R 777 "$release_name"-mac-os-x86_64-portable
+zip -r  "$release_name"-mac-os-x86_64-portable.zip "$release_name"-mac-os-x86_64-portable
+
+# Linux portable release.
+
+mkdir -p "$release_name"-linux-x86_64-portable/bin
+cp -r ${release_files} "$release_name"-linux-x86_64-portable
+
+if [ "$bsd_sed" == "true" ]; then
+    sed -i '' -E "s|^portable_release=.*|portable_release=true|" "$release_name"-linux-x86_64-portable/$program
+else
+    sed -i'' -E "s|^portable_release=.*|portable_release=true|" "$release_name"-linux-x86_64-portable/$program
+fi
+
+# Mac can not regenerate ffmpeg-pled
+if [ "$mac" == "false" ]; then
+    rm -rf ffmpeg-pled
+    pled/pled ffmpeg ffmpeg-pled
+fi
+
+cp -r ffmpeg-pled/* "$release_name"-linux-x86_64-portable/bin
+rm -rf ffmpeg-pled
+
+echo "Downloading the latest yt-dlp for Linux..."
+curl -L "$yt_dlp_linux_dl" -o "$release_name"-linux-x86_64-portable/bin/yt-dlp
+
+chmod -R 777 "$release_name"-linux-x86_64-portable
+zip -r  "$release_name"-linux-x86_64-portable.zip "$release_name"-linux-x86_64-portable
+
+# Linux Deb package release.
+mkdir -p "$release_name"/usr/bin
+mkdir -p "$release_name"/DEBIAN
+cp control "$release_name"/DEBIAN
+cp "$program" "$release_name"/usr/bin
+dpkg-deb --root-owner-group --build "$release_name"
+rm -rf "$release_name"
+
+# Linux RPM package release.
+rm -rf rpm-tmp
+mkdir -p rpm-tmp/RPMS rpm-tmp/SPECS rpm-tmp/SOURCES rpm-tmp/BUILD
+cp ezre.spec rpm-tmp/SPECS/ezre.spec
+cp "$program" rpm-tmp/SOURCES/"$program"
+rpmbuild -bb --target x86_64 rpm-tmp/SPECS/ezre.spec --define "_topdir $PWD/rpm-tmp" --define "_tmppath $PWD/rpm-tmp"
+mv rpm-tmp/RPMS/x86_64/*.rpm .
+rm -rf rpm-tmp

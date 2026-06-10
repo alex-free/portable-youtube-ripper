@@ -1,0 +1,6 @@
+Package: pytr
+Version: 1.0
+Maintainer: Alex Free
+Architecture: amd64
+Homepage: https://github.com/alex-free/portable-youtube-ripper
+Description: Easy YouTube ripping for Mac OS and Linux.

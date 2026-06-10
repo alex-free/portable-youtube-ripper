@@ -1,0 +1,304 @@
+#!/bin/bash
+
+version=1.0
+
+# Specifies if we use self contained bin dir. Set by build script during each release.
+portable_release=false
+
+echo -e "Portable YouTube Ripper (PYTR) v"$version"\n(C) 2026, Alex Free (3-BSD)\nhttps://github.com/alex-free/portable-youtube-ripper\n"
+# Global
+
+if [[ "$portable_release" == "true" ]]; then
+    # Put yt-dlp, and ffmpeg in $PATH if they are in the same directory as this script.
+    # If you symlink psdb's absolute path to a root privilaged dir, some things fail unless we only use the actual real path and not the symlink's. See https://github.com/alex-free/playstation-disc-burner/pull/2.
+    if [ "$(uname)" == "Linux" ]; then
+        real_portable_folder="$(dirname "$(readlink -f "$0")")"
+    else
+        # Not symlink safe but portable for Mac OS.
+        real_portable_folder="$(dirname "$0")"
+    fi
+
+    # Add all the self-contained binaries we need to the $PATH used within this script.
+    PATH=""$real_portable_folder"/bin${PATH:+:$PATH}"
+    preferences="$real_portable_folder"/config
+    # echo $PATH
+    echo "Using:"
+    which yt-dlp
+
+    # Mac OS build contains ffmpeg in standalone yt-dlp.
+    if [[ "$os" == "Linux" ]]; then
+        which ffmpeg
+    fi
+else
+    preferences="$HOME/.config/pytr"
+fi
+
+change_resolution()
+{
+    while true; do
+        echo "Specify the maximum resolution allowed to be downloaded. Note that not all videos are available at all resolutions. If your maximum is not available, the higest format will be automatically detected and used in it's place."
+
+        if [[ "$format" == "avc1" ]]; then
+            echo "The following resolutions are available for AVC1 (if you need higher you must select vp9 or av01 as your format):
+
+            240p
+            360p
+            480p
+            720p
+            1080p
+            "
+            read -p "Enter maximum resolution:" response
+        
+            if [[ "$response" = "240p" ]]; then
+                echo "133" > "$preferences"/resolution.txt
+                break
+            elif [[ "$response" = "360p" ]]; then
+                echo "134" > "$preferences"/resolution.txt
+                break
+            elif [[ "$response" = "480p" ]]; then
+                echo "135" > "$preferences"/resolution.txt
+                break
+            elif [[ "$response" = "720p" ]]; then
+                echo "136" > "$preferences"/resolution.txt
+                break
+            elif [[ "$response" = "1080p" ]]; then
+                echo "137" > "$preferences"/resolution.txt
+                break
+            fi
+
+        elif [[ "$format" == "vp9" || "$format" == "av01" ]]; then
+            echo "The following resolutions are available for $format:
+
+            240p
+            360p
+            480p
+            720p
+            1080p
+            1440p
+            2160p
+            "
+            read -p "Enter maximum resolution:" response
+        
+            if [[ "$format" == "vp9" ]]; then
+                    
+                if [[ "$response" = "240p" ]]; then
+                    echo "242" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "360p" ]]; then
+                    echo "243" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "480p" ]]; then
+                    echo "244" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "720p" ]]; then
+                    echo "247" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "1080p" ]]; then
+                    echo "248" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "1440p" ]]; then
+                    echo "271" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "2160p" ]]; then
+                    echo "313" > "$preferences"/resolution.txt
+                    break                 
+                fi
+            elif [[ "$format" == "av01" ]]; then
+                if [[ "$response" = "240p" ]]; then
+                    echo "395" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "360p" ]]; then
+                    echo "396" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "480p" ]]; then
+                    echo "397" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "720p" ]]; then
+                    echo "398" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "1080p" ]]; then
+                    echo "399" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "1440p" ]]; then
+                    echo "400" > "$preferences"/resolution.txt
+                    break
+                elif [[ "$response" = "2160p" ]]; then
+                    echo "401" > "$preferences"/resolution.txt
+                    break                 
+                fi
+            fi
+        fi
+
+    done
+}
+
+mkdir -p "$preferences"
+
+if [[ ! -f ""$preferences"/format.txt" ]]; then
+    echo "Info: format config not found. Default format set to VP9."
+
+    echo vp9 > "$preferences"/format.txt
+fi
+
+format=$(cat "$preferences"/format.txt)
+echo "Format: $format"
+
+if [[ ! -f ""$preferences"/resolution.txt" ]]; then
+    echo "Info: resolution config not found. Default is higest availble in $format."
+
+    if [ "$format" == "avc1" ]; then
+        echo 137 > "$preferences"/resolution.txt
+    elif [ "$format" == "vp9" ]; then
+        echo 313 > "$preferences"/resolution.txt
+    elif [ "$format" == "av1" ]; then
+        echo 401 > "$preferences"/resolution.txt
+    fi
+fi
+
+resolution=$(cat "$preferences"/resolution.txt)
+echo -e "Maximum resolution: $resolution"
+
+# Portable Linux supports updated YT-DLP.
+if [[ "$portable" == "true" && "$os" == "Linux" ]]; then
+    if ! [[ $# -eq 1 && "$1" == "-u" || "$1" == "-cres" || "$1" == "-cformat" || "$1" == http* ]]; then
+        echo "
+Error: 1 argument is required.
+
+    Usage:
+
+    pytr <input url>     Download YouTube video in specified format up to specified resolution.
+
+    pytr -u       Update YouTube-DLP.
+
+    pytr -cformat      Change format downloaded (avc1, vp9, or av01).
+
+    pytr -cres     Change the maximum resolution that is allowed to be downloaded.
+    "
+        exit 1
+    fi
+
+else
+    # Nothing else supports updatign YT-DLP.
+    if ! [[  $# -eq 1 && "$1" == "-cres" || "$1" == "-cformat" || "$1" == http* ]]; then
+
+        echo "
+Error: 1 argument is required.
+
+    Usage:
+
+    pytr <input url>     Download YouTube video in specified format up to specified resolution.
+
+    pytr -cformat      Change format downloaded (avc1, vp9, or av01).
+
+    pytr -cres     Change the maximum resolution that is allowed to be downloaded.
+    "
+        exit 1
+    fi
+fi
+
+
+if [[ "$1" == "-cformat" ]]; then
+
+    while true; do
+        echo "You can select 1 of 3 different formats:
+
+        avc1
+            * AAC 130k audio
+            * Compatible with legacy video players (essentially H.264 video).
+            * Maxiumum resolution is 1080p.
+            * Least intensive/best performing on lower end hardware.
+        
+        vp9
+            * Opus 135k audio
+            * Modern codec with best quality but worse compression then AV1.
+            * Higher resolutions availble (up to 4k).
+            * Not compatible with legacy video players.
+            * More resource intensive then AVC1 (but much less then AV1 and works on lower end hardware).
+
+        av01     
+            * Opus 135k audio
+            * Modern codec with best quality/compression ratio.
+            * Higher resolutions availble (up to 4k).
+            * Not compatible with legacy video players.
+            * Most resource intensive (even more then VP9).
+        "
+        
+        read -p "Enter format:" response
+        
+        if [[ "$response" = "avc1" || "$response" = "vp9" || "$response" = "av01" ]]; then
+            echo "$response" > "$preferences"/format.txt
+            # Reload config.
+            format=$(cat "$preferences"/format.txt)
+            change_resolution
+            break
+        fi
+
+    done
+
+elif [[ "$1" == "-cres" ]]; then
+    change_resolution
+
+elif [[ "$1" == http* ]]; then
+    # For AVC1:
+    # Find lines containing 'avc1' and sort them by format number in reverse order. Ignores everything after 137 (higher quality set of AVC1). Ignores format 160 (144p) because 240p is always available and that seems like a pain in the ass to implement. Full lower bitrate set for H.264 (AVC1) video is:
+    # * 160 (144p) (ignored, never downloaded see above).
+    # * 133 (240p).
+    # * 134 (360p).
+    # * 135 (480p).
+    # * 136 (720p).
+    # * 137 (1080p).
+
+    # For VP9:
+    # Find lines containing 'vp9' and sort them by format number in reverse order. Ignores everything after 313 (higher quality set of vp9). Ignores format 278 (144p) because 240p is always available and that seems like a pain in the ass to implement. Full lower bitrate set for VP9 video is:
+    # * 278 (144p) (ignored, never downloaded see above).
+    # * 242 (240p).
+    # * 243 (360p).
+    # * 244 (480p).
+    # * 247 (720p).
+    # * 248 (1080p).
+    # * 271 (1440p).
+    # * 313 (2160p).
+
+    # For AV1:
+    # Find lines containing 'vp9' and sort them by format number in reverse order. Full lower bitrate set for AV1 video is:
+    # * 394 (144p) (actually not ignored unlike AVC1 and VP9 because this sequencing makes sense and is 'free').
+    # * 395 (240p).
+    # * 396 (360p).
+    # * 397 (480p).
+    # * 398 (720p).
+    # * 399 (1080p).
+    # * 400 (1440p).
+    # * 401 (2160p).
+
+    formats="$(yt-dlp --user-agent "$user_agent" -F "${1}")"
+
+    if [[ "$format" == "avc1" ]]; then
+        #144p successfully ignored because max is format 137 (1080p) and 144p is format 160.
+        highest_supported_format="$(echo "$formats" | grep 'avc1' | awk -v max="$resolution" '$1 <= max' | sort -t ' ' -k1,1nr | head -n 1 | awk '{print $1}')"
+
+    elif [[ "$format" == "vp9" ]]; then
+        # 144p ignored by filtering out format 278.
+        highest_supported_format="$(echo "$formats" | grep 'vp9' | grep -v '^278 ' | awk -v max="$resolution" '$1 <= max' | sort -t ' ' -k1,1nr | head -n 1 | awk '{print $1}')"
+
+    elif [[ "$format" == "av01" ]]; then
+        # Nothing weird we have to do here since 144p is the lowest numbered format for av1.
+        highest_supported_format="$(echo "$formats" | grep 'av01' | awk -v max="$resolution" '$1 <= max' | sort -t ' ' -k1,1nr | head -n 1 | awk '{print $1}')"
+    fi
+
+    if [[ -z "$highest_supported_format" ]]; then
+        echo "Error, unable to get any video format. Try updating yt-dlp with the command x360mc -u."
+        exit 1
+    fi
+    
+    echo "Got format "$highest_supported_format""
+
+    if [[ "$format" == "av01" || "$format" == "vp9" ]]; then
+        yt-dlp --force-overwrites -f "$highest_supported_format"+251 "${1}"
+    elif [[ "$format" == "avc1" ]]; then
+        yt-dlp --force-overwrites -f "$highest_supported_format"+140 "${1}"
+    fi
+
+# Safe because we can ONLY get here if portable=true and os=Linux.
+elif [[ "$1" == "-u" ]]; then
+    yt-dlp -U
+fi
